@@ -1,9 +1,14 @@
-BINARY := kubectl-fqdn
+BINARY  := kubectl-fqdn
+PKG     := github.com/imryanparsa/kfqdn/internal/cli
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
+DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS  = -X '$(PKG).Version=$(VERSION)' -X '$(PKG).Commit=$(COMMIT)' -X '$(PKG).Date=$(DATE)'
 
-.PHONY: build install tidy
+.PHONY: build install tidy clean
 
 build:
-	go build -o $(BINARY) ./cmd
+	go build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd
 
 install: build
 	@echo ""

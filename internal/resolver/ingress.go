@@ -18,8 +18,8 @@ func (r *IngressResolver) Resolve(ctx context.Context, client kubernetes.Interfa
 	return resolveIngressObj(ing), nil
 }
 
-func (r *IngressResolver) ListAll(ctx context.Context, client kubernetes.Interface, ns, domain string) ([]NamedResults, error) {
-	ings, err := client.NetworkingV1().Ingresses(ns).List(ctx, metav1.ListOptions{})
+func (r *IngressResolver) ListAll(ctx context.Context, client kubernetes.Interface, ns, domain, selector string) ([]NamedResults, error) {
+	ings, err := client.NetworkingV1().Ingresses(ns).List(ctx, metav1.ListOptions{LabelSelector: selector})
 	if err != nil {
 		return nil, err
 	}

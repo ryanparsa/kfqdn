@@ -3,6 +3,8 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,8 +21,8 @@ func (r *ServiceResolver) Resolve(ctx context.Context, client kubernetes.Interfa
 	return ServiceResultsFor(svc, domain), nil
 }
 
-func (r *ServiceResolver) ListAll(ctx context.Context, client kubernetes.Interface, ns, domain string) ([]NamedResults, error) {
-	svcs, err := client.CoreV1().Services(ns).List(ctx, metav1.ListOptions{})
+func (r *ServiceResolver) ListAll(ctx context.Context, client kubernetes.Interface, ns, domain, selector string) ([]NamedResults, error) {
+	svcs, err := client.CoreV1().Services(ns).List(ctx, metav1.ListOptions{LabelSelector: selector})
 	if err != nil {
 		return nil, fmt.Errorf("listing services: %w", err)
 	}
@@ -31,6 +33,7 @@ func (r *ServiceResolver) ListAll(ctx context.Context, client kubernetes.Interfa
 			Namespace: svc.Namespace,
 			Name:      svc.Name,
 			Results:   ServiceResultsFor(svc, domain),
+			Extra:     servicePorts(svc),
 		})
 	}
 	return named, nil
@@ -59,4 +62,13 @@ func ServiceResultsFor(svc *corev1.Service, domain string) []Result {
 	}
 
 	return results
+}
+
+// servicePorts returns a compact port list string, e.g. "80/TCP,443/TCP".
+func servicePorts(svc *corev1.Service) string {
+	parts := make([]string, 0, len(svc.Spec.Ports))
+	for _, p := range svc.Spec.Ports {
+		parts = append(parts, strconv.Itoa(int(p.Port))+"/"+string(p.Protocol))
+	}
+	return strings.Join(parts, ",")
 }

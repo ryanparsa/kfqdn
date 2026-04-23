@@ -59,11 +59,11 @@ internal/
 
    ```go
    type Resolver interface {
-       Resolve(ctx context.Context, client kubernetes.Interface, ns, name, domain string) []Result
+       Resolve(ctx context.Context, client kubernetes.Interface, ns, name, domain string) ([]Result, error)
    }
 
    type Lister interface {
-       ListAll(ctx context.Context, client kubernetes.Interface, ns, domain string) []NamedResults
+       ListAll(ctx context.Context, client kubernetes.Interface, ns, domain, selector string) ([]NamedResults, error)
    }
    ```
 

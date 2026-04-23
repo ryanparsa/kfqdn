@@ -23,6 +23,7 @@ type NamedResults struct {
 	Name      string
 	Type      string // set when multiple resource types are mixed (e.g. "all")
 	Results   []Result
+	Extra     string // extra info shown in wide output (port(s) for svc, phase for pod)
 }
 
 // AllTypes is the canonical ordered list used by "all" to iterate every Lister.
@@ -30,22 +31,31 @@ var AllTypes = []string{"svc", "pod", "ing", "node"}
 
 // Lister can enumerate all resources of a type within a namespace.
 // An empty ns string means all namespaces.
+// selector is an optional label selector string (e.g. "app=myapp"); empty means all.
 type Lister interface {
-	ListAll(ctx context.Context, client kubernetes.Interface, ns, domain string) ([]NamedResults, error)
+	ListAll(ctx context.Context, client kubernetes.Interface, ns, domain, selector string) ([]NamedResults, error)
 }
+
+// package-level resolver instances — all aliases share the same zero-value struct.
+var (
+	svcResolver  = &ServiceResolver{}
+	podResolver  = &PodResolver{}
+	ingResolver  = &IngressResolver{}
+	nodeResolver = &NodeResolver{}
+)
 
 // Registry maps resource type aliases to their Resolver.
 var Registry = map[string]Resolver{
-	"svc":      &ServiceResolver{},
-	"service":  &ServiceResolver{},
-	"services": &ServiceResolver{},
-	"pod":      &PodResolver{},
-	"pods":     &PodResolver{},
-	"po":       &PodResolver{},
-	"ing":      &IngressResolver{},
-	"ingress":  &IngressResolver{},
-	"ingresses": &IngressResolver{},
-	"node":     &NodeResolver{},
-	"nodes":    &NodeResolver{},
-	"no":       &NodeResolver{},
+	"svc":       svcResolver,
+	"service":   svcResolver,
+	"services":  svcResolver,
+	"pod":       podResolver,
+	"pods":      podResolver,
+	"po":        podResolver,
+	"ing":       ingResolver,
+	"ingress":   ingResolver,
+	"ingresses": ingResolver,
+	"node":      nodeResolver,
+	"nodes":     nodeResolver,
+	"no":        nodeResolver,
 }
