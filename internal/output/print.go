@@ -136,6 +136,8 @@ func printJSON(streams genericiooptions.IOStreams, named []resolver.NamedResults
 
 // resolveAll performs parallel DNS lookups for all unique names found in named.
 // It returns a map from DNS name to resolved IPs string.
+// A semaphore limits the number of concurrent goroutines to avoid overwhelming
+// the local resolver when there are many DNS names to resolve.
 func resolveAll(named []resolver.NamedResults) map[string]string {
 	// Collect unique names.
 	seen := make(map[string]struct{})
@@ -144,6 +146,9 @@ func resolveAll(named []resolver.NamedResults) map[string]string {
 			seen[r.Name] = struct{}{}
 		}
 	}
+
+	const maxConcurrent = 64
+	sem := make(chan struct{}, maxConcurrent)
 
 	results := make(map[string]string, len(seen))
 	var mu sync.Mutex
@@ -154,7 +159,9 @@ func resolveAll(named []resolver.NamedResults) map[string]string {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			sem <- struct{}{}
 			ips := lookupHost(name)
+			<-sem
 			mu.Lock()
 			results[name] = ips
 			mu.Unlock()

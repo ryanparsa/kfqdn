@@ -18,6 +18,9 @@ func (r *PodResolver) Resolve(ctx context.Context, client kubernetes.Interface, 
 	if err != nil {
 		return nil, fmt.Errorf("getting pod %q in namespace %q: %w", name, ns, err)
 	}
+	// Fetch all services in the namespace to check for a matching headless service.
+	// For single-resource resolution the list is small and this avoids a second
+	// round-trip inside resolveFromObj.
 	svcs, err := client.CoreV1().Services(ns).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("listing services in namespace %q: %w", ns, err)
