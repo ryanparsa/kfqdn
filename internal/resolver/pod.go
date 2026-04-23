@@ -16,32 +16,46 @@ type PodResolver struct{}
 func (r *PodResolver) Resolve(ctx context.Context, client kubernetes.Interface, ns, name, domain string) ([]Result, error) {
 	pod, err := client.CoreV1().Pods(ns).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("pod %q not found in namespace %q", name, ns)
+		return nil, fmt.Errorf("getting pod %q in namespace %q: %w", name, ns, err)
 	}
-	return r.resolveFromObj(ctx, client, pod, domain)
+	svcs, err := client.CoreV1().Services(ns).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("listing services in namespace %q: %w", ns, err)
+	}
+	return r.resolveFromObj(ctx, client, pod, svcs.Items, domain)
 }
 
-func (r *PodResolver) ListAll(ctx context.Context, client kubernetes.Interface, ns, domain string) ([]NamedResults, error) {
-	pods, err := client.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{})
+func (r *PodResolver) ListAll(ctx context.Context, client kubernetes.Interface, ns, domain, selector string) ([]NamedResults, error) {
+	pods, err := client.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{LabelSelector: selector})
 	if err != nil {
 		return nil, fmt.Errorf("listing pods: %w", err)
 	}
+
+	// Fetch services once to avoid N+1 calls when matching headless services.
+	svcs, err := client.CoreV1().Services(ns).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("listing services for pod resolution: %w", err)
+	}
+
 	var named []NamedResults
 	for i := range pods.Items {
-		results, err := r.resolveFromObj(ctx, client, &pods.Items[i], domain)
+		pod := &pods.Items[i]
+		results, err := r.resolveFromObj(ctx, client, pod, svcs.Items, domain)
 		if err != nil {
-			continue
+			// Emit a placeholder row so the pod is still visible in the output.
+			results = []Result{{Name: "[no ip]", Kind: "ip-pod-fqdn"}}
 		}
 		named = append(named, NamedResults{
-			Namespace: pods.Items[i].Namespace,
-			Name:      pods.Items[i].Name,
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
 			Results:   results,
+			Extra:     string(pod.Status.Phase),
 		})
 	}
 	return named, nil
 }
 
-func (r *PodResolver) resolveFromObj(ctx context.Context, client kubernetes.Interface, pod *corev1.Pod, domain string) ([]Result, error) {
+func (r *PodResolver) resolveFromObj(ctx context.Context, client kubernetes.Interface, pod *corev1.Pod, svcs []corev1.Service, domain string) ([]Result, error) {
 	ns := pod.Namespace
 	name := pod.Name
 
@@ -57,7 +71,7 @@ func (r *PodResolver) resolveFromObj(ctx context.Context, client kubernetes.Inte
 		}
 	}
 
-	if svcName, ok := headlessSvcForPod(ctx, client, ns, pod.Labels); ok {
+	if svcName, ok := headlessSvcForPod(svcs, pod.Labels); ok {
 		return []Result{{
 			Name: fmt.Sprintf("%s.%s.%s.svc.%s", name, svcName, ns, domain),
 			Kind: "headless-fqdn",
@@ -74,12 +88,10 @@ func (r *PodResolver) resolveFromObj(ctx context.Context, client kubernetes.Inte
 	}}, nil
 }
 
-func headlessSvcForPod(ctx context.Context, client kubernetes.Interface, ns string, podLabels map[string]string) (string, bool) {
-	svcs, err := client.CoreV1().Services(ns).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return "", false
-	}
-	for _, svc := range svcs.Items {
+// headlessSvcForPod matches pod labels against the in-memory service list,
+// eliminating the need for an API call per pod.
+func headlessSvcForPod(svcs []corev1.Service, podLabels map[string]string) (string, bool) {
+	for _, svc := range svcs {
 		if svc.Spec.ClusterIP != "None" || len(svc.Spec.Selector) == 0 {
 			continue
 		}

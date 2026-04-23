@@ -21,8 +21,14 @@ Debugging DNS in Kubernetes usually means jumping between `kubectl get svc`, `ku
 - Resolves pod FQDNs: StatefulSet governing service, headless service, and IP-based
 - Extracts ingress rule hosts, TLS hosts, and LB hostnames/IPs
 - Resolves node external/internal DNS and hostnames
-- Optional live DNS resolution with `--resolve` / `-r`
+- Optional live DNS resolution with `--resolve` / `-r` (performed concurrently)
+- Multiple output formats: `table` (default), `wide` (adds port/phase info), `json`
+- Label selector filtering with `--selector` / `-l`
+- Configurable API timeout with `--timeout`
+- `kubectl fqdn version` subcommand with build-time version injection
+- Shell completion for resource types and namespaces
 - Inherits all standard kubectl flags (`--namespace`, `--context`, `--kubeconfig`, etc.)
+- Concurrent resource-type fetching for `all` and `-A`
 
 ## Installation
 
@@ -71,6 +77,18 @@ kubectl fqdn svc -n default --resolve
 
 # Use a non-default context
 kubectl fqdn pod --context staging-cluster -n app
+
+# Wide output (shows port(s) for services, phase for pods)
+kubectl fqdn svc -n default -o wide
+
+# JSON output for scripting
+kubectl fqdn all -A -o json | jq '.[].dnsName'
+
+# Filter by label selector
+kubectl fqdn svc -n default -l app=myapp
+
+# Print version information
+kubectl fqdn version
 ```
 
 ## Supported Resource Types
@@ -90,6 +108,9 @@ kubectl fqdn pod --context staging-cluster -n app
 | `--namespace` | `-n` | current context | Target namespace |
 | `--all-namespaces` | `-A` | `false` | Query across all namespaces |
 | `--resolve` | `-r` | `false` | Resolve DNS names to IP addresses |
+| `--output` | `-o` | `table` | Output format: `table`, `wide`, `json` |
+| `--selector` | `-l` | | Label selector to filter resources (e.g. `app=myapp`) |
+| `--timeout` | | `30s` | Timeout for Kubernetes API requests |
 | `--context` | | current context | Kubeconfig context to use |
 | `--kubeconfig` | | `~/.kube/config` | Path to kubeconfig file |
 

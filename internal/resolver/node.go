@@ -18,8 +18,8 @@ func (r *NodeResolver) Resolve(ctx context.Context, client kubernetes.Interface,
 	return resolveNodeObj(node), nil
 }
 
-func (r *NodeResolver) ListAll(ctx context.Context, client kubernetes.Interface, ns, domain string) ([]NamedResults, error) {
-	nodes, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+func (r *NodeResolver) ListAll(ctx context.Context, client kubernetes.Interface, ns, domain, selector string) ([]NamedResults, error) {
+	nodes, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{LabelSelector: selector})
 	if err != nil {
 		return nil, err
 	}
