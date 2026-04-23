@@ -105,6 +105,27 @@ kubectl fqdn svc my-svc -n default -r
 kubectl fqdn svc -A -r
 ```
 
+### `kubectl fqdn all -A -r`
+
+```
+NAMESPACE            TYPE   NAME                                         DNS NAME                                          KIND           IP(S)
+default              svc    kubernetes                                   kubernetes.default.svc.cluster.local              cluster-fqdn   192.168.194.129, fd07:b51a:cc66:0:a617:db5e:c0a8:c281
+kube-system          svc    kube-dns                                     kube-dns.kube-system.svc.cluster.local            cluster-fqdn   192.168.194.138, fd07:b51a:cc66:a:8000::a
+default              pod    dnsutils                                     10-244-0-5.default.pod.cluster.local              ip-pod-fqdn    fd07:b51a:cc66:0:a617:db5e:af4:5, 10.244.0.5
+kube-system          pod    coredns-7d764666f9-28r4w                     10-244-0-4.kube-system.pod.cluster.local          ip-pod-fqdn    fd07:b51a:cc66:0:a617:db5e:af4:4, 10.244.0.4
+kube-system          pod    coredns-7d764666f9-4jxpl                     10-244-0-2.kube-system.pod.cluster.local          ip-pod-fqdn    fd07:b51a:cc66:0:a617:db5e:af4:2, 10.244.0.2
+kube-system          pod    etcd-kind-control-plane                      192-168-97-2.kube-system.pod.cluster.local        ip-pod-fqdn    192.168.97.2, fd07:b51a:cc66:0:a617:db5e:c0a8:6102
+kube-system          pod    kindnet-ccrg8                                192-168-97-2.kube-system.pod.cluster.local        ip-pod-fqdn    192.168.97.2, fd07:b51a:cc66:0:a617:db5e:c0a8:6102
+kube-system          pod    kube-apiserver-kind-control-plane            192-168-97-2.kube-system.pod.cluster.local        ip-pod-fqdn    192.168.97.2, fd07:b51a:cc66:0:a617:db5e:c0a8:6102
+kube-system          pod    kube-controller-manager-kind-control-plane   192-168-97-2.kube-system.pod.cluster.local        ip-pod-fqdn    192.168.97.2, fd07:b51a:cc66:0:a617:db5e:c0a8:6102
+kube-system          pod    kube-proxy-6lqpz                             192-168-97-2.kube-system.pod.cluster.local        ip-pod-fqdn    192.168.97.2, fd07:b51a:cc66:0:a617:db5e:c0a8:6102
+kube-system          pod    kube-scheduler-kind-control-plane            192-168-97-2.kube-system.pod.cluster.local        ip-pod-fqdn    192.168.97.2, fd07:b51a:cc66:0:a617:db5e:c0a8:6102
+local-path-storage   pod    local-path-provisioner-67b8995b4b-l6q98      10-244-0-3.local-path-storage.pod.cluster.local   ip-pod-fqdn    [unresolved]
+                     node   kind-control-plane                           kind-control-plane                                hostname       [unresolved]
+```
+
+> `[unresolved]` means the DNS name only resolves from inside the cluster, not from your local machine.
+
 ## What gets extracted
 
 | Resource | DNS names extracted |
