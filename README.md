@@ -1,45 +1,46 @@
-# kfqdn
+<div align="center">
 
-A kubectl plugin that extracts every DNS-relevant name from any Kubernetes resource — services, pods, ingresses, and nodes.
+# kubectl-fqdn
 
-## Project structure
+**Extract every DNS-relevant name from your Kubernetes cluster — in one command.**
 
-```
-kfqdn/
-├── cmd/
-│   └── main.go
-├── internal/
-│   ├── cli/
-│   │   ├── root.go
-│   │   └── run.go
-│   ├── resolver/
-│   │   ├── resolver.go
-│   │   ├── cluster.go
-│   │   ├── service.go
-│   │   ├── pod.go
-│   │   ├── ingress.go
-│   │   └── node.go
-│   └── output/
-│       └── print.go
-├── go.mod
-├── Makefile
-└── README.md
-```
+[![CI](https://github.com/imryanparsa/kfqdn/actions/workflows/ci.yml/badge.svg)](https://github.com/imryanparsa/kfqdn/actions/workflows/ci.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/imryanparsa/kfqdn)](https://go.dev/doc/devel/release)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+</div>
+
+---
+
+Debugging DNS in Kubernetes usually means jumping between `kubectl get svc`, `kubectl get pods`, and manually constructing FQDNs. `kubectl fqdn` does it for you — for services, pods, ingresses, and nodes — with optional live DNS resolution.
+
+## Features
+
+- Auto-detects your cluster domain from the CoreDNS ConfigMap (falls back to `cluster.local`)
+- Handles all service types: ClusterIP, ExternalName, LoadBalancer
+- Resolves pod FQDNs: StatefulSet governing service, headless service, and IP-based
+- Extracts ingress rule hosts, TLS hosts, and LB hostnames/IPs
+- Resolves node external/internal DNS and hostnames
+- Optional live DNS resolution with `--resolve` / `-r`
+- Inherits all standard kubectl flags (`--namespace`, `--context`, `--kubeconfig`, etc.)
 
 ## Installation
 
-### From source
+### Via Krew
 
 ```bash
-make build
-cp kubectl-fqdn ~/.local/bin/
+kubectl krew install fqdn
 ```
 
-That directory must be on your `PATH`:
+### Build from source
 
 ```bash
-export PATH="$PATH:$HOME/.local/bin"
+git clone https://github.com/imryanparsa/kfqdn.git
+cd kfqdn
+make install
 ```
+
+> **Note:** The install target builds the binary and prints copy instructions. Ensure the target directory is on your `PATH`.
 
 ### Verify
 
@@ -53,90 +54,72 @@ kubectl plugin list | grep fqdn
 kubectl fqdn <type> [name] [flags]
 ```
 
-| Type | Aliases | Description |
-|------|---------|-------------|
-| `svc` | `service`, `services` | Kubernetes Service |
-| `pod` | `pods`, `po` | Kubernetes Pod |
-| `ing` | `ingress`, `ingresses` | Kubernetes Ingress |
-| `node` | `nodes`, `no` | Kubernetes Node |
-| `all` | | All resource types |
-
-### Flags
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--namespace` | `-n` | Namespace scope |
-| `--all-namespaces` | `-A` | All namespaces |
-| `--resolve` | `-r` | Resolve DNS names to IP addresses |
-| `--context` | | Kubeconfig context |
-| `--kubeconfig` | | Path to kubeconfig |
-
-## Examples
+### Examples
 
 ```bash
-# List all services in a namespace
-kubectl fqdn svc -n default
+# All services in the current namespace
+kubectl fqdn svc
 
-# Resolve a specific service
-kubectl fqdn svc my-svc -n production
-
-# List all pods in a namespace
-kubectl fqdn pod -n kube-system
-
-# Resolve a specific pod
-kubectl fqdn pod my-pod-0 -n default
-
-# List all ingresses
-kubectl fqdn ing -n prod
-
-# List all nodes
-kubectl fqdn node
-
-# All resource types in a namespace
-kubectl fqdn all -n kube-system
+# One specific service
+kubectl fqdn svc my-service -n production
 
 # All resource types across every namespace
 kubectl fqdn all -A
 
-# Resolve DNS names to IPs
-kubectl fqdn svc my-svc -n default -r
+# Resolve DNS names to live IPs
+kubectl fqdn svc -n default --resolve
 
-# List and resolve all services across namespaces
-kubectl fqdn svc -A -r
+# Use a non-default context
+kubectl fqdn pod --context staging-cluster -n app
 ```
 
-### `kubectl fqdn all -A -r`
+## Supported Resource Types
+
+| Type | Aliases | What gets extracted |
+|------|---------|---------------------|
+| `svc` | `service`, `services` | Cluster FQDN · CNAME target (ExternalName) · external hostname/IP (LoadBalancer) |
+| `pod` | `pods`, `po` | StatefulSet FQDN · headless service FQDN · IP-based FQDN |
+| `ing` | `ingress`, `ingresses` | Rule hosts · TLS hosts · LB hostnames/IPs |
+| `node` | `nodes`, `no` | External DNS · internal DNS · hostname |
+| `all` | | All of the above |
+
+## Flags
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--namespace` | `-n` | current context | Target namespace |
+| `--all-namespaces` | `-A` | `false` | Query across all namespaces |
+| `--resolve` | `-r` | `false` | Resolve DNS names to IP addresses |
+| `--context` | | current context | Kubeconfig context to use |
+| `--kubeconfig` | | `~/.kube/config` | Path to kubeconfig file |
+
+## Example Output
 
 ```
-NAMESPACE            TYPE   NAME                                         DNS NAME                                          KIND           IP(S)
-default              svc    kubernetes                                   kubernetes.default.svc.cluster.local              cluster-fqdn   192.168.194.129, fd07:b51a:cc66:0:a617:db5e:c0a8:c281
-kube-system          svc    kube-dns                                     kube-dns.kube-system.svc.cluster.local            cluster-fqdn   192.168.194.138, fd07:b51a:cc66:a:8000::a
-default              pod    dnsutils                                     10-244-0-5.default.pod.cluster.local              ip-pod-fqdn    fd07:b51a:cc66:0:a617:db5e:af4:5, 10.244.0.5
-kube-system          pod    coredns-7d764666f9-28r4w                     10-244-0-4.kube-system.pod.cluster.local          ip-pod-fqdn    fd07:b51a:cc66:0:a617:db5e:af4:4, 10.244.0.4
-kube-system          pod    coredns-7d764666f9-4jxpl                     10-244-0-2.kube-system.pod.cluster.local          ip-pod-fqdn    fd07:b51a:cc66:0:a617:db5e:af4:2, 10.244.0.2
-kube-system          pod    etcd-kind-control-plane                      192-168-97-2.kube-system.pod.cluster.local        ip-pod-fqdn    192.168.97.2, fd07:b51a:cc66:0:a617:db5e:c0a8:6102
-kube-system          pod    kindnet-ccrg8                                192-168-97-2.kube-system.pod.cluster.local        ip-pod-fqdn    192.168.97.2, fd07:b51a:cc66:0:a617:db5e:c0a8:6102
-kube-system          pod    kube-apiserver-kind-control-plane            192-168-97-2.kube-system.pod.cluster.local        ip-pod-fqdn    192.168.97.2, fd07:b51a:cc66:0:a617:db5e:c0a8:6102
-kube-system          pod    kube-controller-manager-kind-control-plane   192-168-97-2.kube-system.pod.cluster.local        ip-pod-fqdn    192.168.97.2, fd07:b51a:cc66:0:a617:db5e:c0a8:6102
-kube-system          pod    kube-proxy-6lqpz                             192-168-97-2.kube-system.pod.cluster.local        ip-pod-fqdn    192.168.97.2, fd07:b51a:cc66:0:a617:db5e:c0a8:6102
-kube-system          pod    kube-scheduler-kind-control-plane            192-168-97-2.kube-system.pod.cluster.local        ip-pod-fqdn    192.168.97.2, fd07:b51a:cc66:0:a617:db5e:c0a8:6102
-local-path-storage   pod    local-path-provisioner-67b8995b4b-l6q98      10-244-0-3.local-path-storage.pod.cluster.local   ip-pod-fqdn    [unresolved]
-                     node   kind-control-plane                           kind-control-plane                                hostname       [unresolved]
+kubectl fqdn all -A -r
 ```
 
-> `[unresolved]` means the DNS name only resolves from inside the cluster, not from your local machine.
+```
+NAMESPACE            TYPE   NAME                                         DNS NAME                                          KIND             IP(S)
+default              svc    kubernetes                                   kubernetes.default.svc.cluster.local              cluster-fqdn     192.168.194.129, fd07:b51a:cc66:0:a617:db5e:c0a8:c281
+kube-system          svc    kube-dns                                     kube-dns.kube-system.svc.cluster.local            cluster-fqdn     192.168.194.138, fd07:b51a:cc66:a:8000::a
+default              pod    dnsutils                                     10-244-0-5.default.pod.cluster.local              ip-pod-fqdn      10.244.0.5
+kube-system          pod    coredns-7d764666f9-28r4w                     10-244-0-4.kube-system.pod.cluster.local          ip-pod-fqdn      10.244.0.4
+kube-system          pod    etcd-kind-control-plane                      192-168-97-2.kube-system.pod.cluster.local        ip-pod-fqdn      192.168.97.2
+local-path-storage   pod    local-path-provisioner-67b8995b4b-l6q98      10-244-0-3.local-path-storage.pod.cluster.local   ip-pod-fqdn      [unresolved]
+                     node   kind-control-plane                           kind-control-plane                                hostname         [unresolved]
+```
 
-## What gets extracted
+> `[unresolved]` means the name resolves only from inside the cluster — this is expected when running from your local machine.
 
-| Resource | DNS names extracted |
-|---|---|
-| Service (ClusterIP) | `<name>.<ns>.svc.<domain>` |
-| Service (ExternalName) | cluster FQDN + CNAME target |
-| Service (LoadBalancer) | cluster FQDN + external hostname/IP |
-| Pod (StatefulSet) | `<pod>.<governing-svc>.<ns>.svc.<domain>` |
-| Pod (headless service) | `<pod>.<svc>.<ns>.svc.<domain>` |
-| Pod (other) | `<ip-dashes>.<ns>.pod.<domain>` |
-| Ingress | rule hosts, TLS hosts, LB hostnames |
-| Node | external-dns, internal-dns, hostname addresses |
+## How It Works
 
-The cluster domain is auto-detected from the CoreDNS ConfigMap in `kube-system`, falling back to `cluster.local`.
+On startup, `kubectl fqdn` reads the `kube-system/coredns` ConfigMap and extracts the cluster domain from the Corefile (`kubernetes <domain>` directive). If detection fails it falls back to `cluster.local`. All FQDNs are then constructed according to the [Kubernetes DNS specification](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up your environment, add a new resource type, and open a pull request.
+
+## License
+
+MIT — see [LICENSE](LICENSE) for details.
